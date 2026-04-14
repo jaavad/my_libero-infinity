@@ -457,6 +457,18 @@ def plan_distractor(
             "distractor", f"budget capped at {budget} (free_area={free_area:.3f})"
         )
 
+    # Asset substitution increases the effective occupied footprint of the task
+    # objects enough that the naive free-area heuristic overestimates how much
+    # clutter can still be rejection-sampled alongside position perturbations.
+    # Without narrowing here, combined/full presets become unsampleable on the
+    # bowl task used by Tier-1 CI.
+    if {"position", "object", "distractor"}.issubset(request_axes) and budget > 2:
+        budget = 2
+        diagnostics.narrow_axis(
+            "distractor",
+            "reduced to 2 to preserve composability with position+object sampling",
+        )
+
     # Collect task-scene object classes to exclude from distractors
     scene_classes: set[str] = set()
     for node in graph.nodes.values():

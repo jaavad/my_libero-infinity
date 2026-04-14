@@ -343,6 +343,20 @@ def test_distractor_budget_scales_with_free_area(
     assert small_budget <= large_budget
 
 
+def test_distractor_budget_narrows_for_position_object_composition(
+    sample_graph: SemanticSceneGraph,
+) -> None:
+    """Position+object+distractor composition should narrow distractor count."""
+    diag = PlanDiagnostics()
+    budget, _classes = plan_distractor(
+        sample_graph,
+        frozenset(["position", "object", "distractor"]),
+        diag,
+        free_area=0.5,
+    )
+    assert budget <= 2
+
+
 def test_distractor_classes_non_empty(sample_graph: SemanticSceneGraph) -> None:
     """Distractor classes should be non-empty when budget > 0."""
     diag = PlanDiagnostics()
