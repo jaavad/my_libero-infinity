@@ -125,6 +125,7 @@ def render_scenic(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str:
     fragments.append(_render_fixtures(plan, graph))
     fragments.append(_render_objects(plan, graph))
     fragments.append(_render_articulation(plan, graph))
+    fragments.append(_render_robot(plan, graph))
     fragments.append(_render_camera(plan, graph))
     fragments.append(_render_lighting(plan, graph))
     fragments.append(_render_texture(plan, graph))
@@ -319,6 +320,38 @@ def _render_articulation(plan: PerturbationPlan, graph: SemanticSceneGraph) -> s
     return "\n".join(lines)
 
 
+def _render_robot(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str:
+    del graph
+    if plan.robot_plan is None or "robot" not in plan.active_axes:
+        return ""
+    rp = plan.robot_plan
+    canonical_terms = ", ".join(f"{q:.8f}" for q in rp.canonical_qpos)
+    lines = [
+        "# Robot init perturbation",
+        "import math",
+        f"_robot_qpos_canonical = [{canonical_terms}]",
+        f"_robot_radius = Range({rp.radius_lo:.4f}, {rp.radius_hi:.4f})",
+    ]
+    dir_terms: list[str] = []
+    for idx in range(len(rp.canonical_qpos)):
+        lines.append(f"_robot_dir_{idx} = Range(-1.0, 1.0)")
+        dir_terms.append(f"_robot_dir_{idx}")
+    norm_expr = " + ".join(f"({_term} * {_term})" for _term in dir_terms)
+    lines.append(f"_robot_dir_norm = (({norm_expr}) + 1e-12) ** 0.5")
+    qpos_refs: list[str] = []
+    for idx, qpos in enumerate(rp.canonical_qpos):
+        expr = (
+            f"{qpos:.8f} + ((_robot_radius * _robot_dir_{idx}) / _robot_dir_norm)"
+        )
+        lines.append(f"param robot_init_qpos_{idx} = {expr}")
+        qpos_refs.append(f"globalParameters.robot_init_qpos_{idx}")
+    lines.append("param robot_init_radius = _robot_radius")
+    lines.append(f'param robot_model = "{rp.robot_model}"')
+    lines.append(f"param robot_init_qpos = [{', '.join(qpos_refs)}]")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _render_camera(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str:
     if plan.camera_plan is None or "camera" not in plan.active_axes:
         return ""
@@ -392,22 +425,34 @@ def _render_background(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str
 
 
 def _render_distractors(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str:
+    del graph
     if plan.distractor_budget <= 0 or "distractor" not in plan.active_axes:
         return ""
     classes = plan.distractor_classes or []
     n = plan.distractor_budget
     lines = [
         "# Distractor objects",
-        f"param n_distractors = {n}",
+        f"param n_distractors = DiscreteRange(1, {n})",
+        "_n_distractors = globalParameters.n_distractors",
     ]
     if classes:
-        cls_str = ", ".join(f'"{c}"' for c in classes[:10])
+        cls_str = ", ".join(f'"{c}"' for c in classes)
         lines.append(f"_distractor_pool = [{cls_str}]")
     for i in range(n):
+        if classes:
+            lines.append(f"param distractor_{i}_class = Uniform(*_distractor_pool)")
         # Scenic 3: specifiers are comma-separated; libero_name is the declared property
-        lines.append(
-            f'distractor_{i} = new LIBEROObject in SAFE_REGION, with libero_name "distractor_{i}"'
-        )
+        specifiers = [
+            "in SAFE_REGION",
+            f'with libero_name "distractor_{i}"',
+            "with width 0.08",
+            "with length 0.08",
+            "with height 0.08",
+            "with preserve_default_z False",
+        ]
+        if classes:
+            specifiers.append(f"with asset_class globalParameters.distractor_{i}_class")
+        lines.append(f"distractor_{i} = new LIBEROObject " + ", ".join(specifiers))
     lines.append("")
     return "\n".join(lines)
 
@@ -512,9 +557,31 @@ def _render_constraints(plan: PerturbationPlan, graph: SemanticSceneGraph) -> st
     # Distractor clearance (fixed small margin — distractors are intentionally small)
     obj_vars = [var for var, _, _n, _s in obj_info]
     if plan.distractor_budget > 0 and "distractor" in plan.active_axes:
+        distractor_dims = (0.08, 0.08, 0.08)
         for i in range(plan.distractor_budget):
             for var in obj_vars:
-                lines.append(f"require (distance from distractor_{i} to {var}) > 0.08")
+                lines.append(
+                    f"require (_n_distractors <= {i}) "
+                    f"or ((distance from distractor_{i} to {var}) > 0.13)"
+                )
+            for j in range(i + 1, plan.distractor_budget):
+                lines.append(
+                    f"require (_n_distractors <= {i}) "
+                    f"or (_n_distractors <= {j}) "
+                    f"or ((distance from distractor_{i} to distractor_{j}) > 0.06)"
+                )
+            for node_id, fnode in graph.nodes.items():
+                if not isinstance(fnode, FixtureNode):
+                    continue
+                if fnode.init_x is None or fnode.init_y is None:
+                    continue
+                fvar = _to_var(fnode.instance_name)
+                fdims = _fixture_dims(fnode.object_class)
+                clearance = _footprint_clearance_xy(fdims, distractor_dims)
+                lines.append(
+                    f"require (_n_distractors <= {i}) "
+                    f"or ((distance from distractor_{i} to {fvar}) > {clearance:.4f})"
+                )
 
     lines.append("")
     return "\n".join(lines)

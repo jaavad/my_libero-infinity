@@ -38,6 +38,7 @@ param n_distractors = DiscreteRange(1, 5)
 param distractor_clearance = 0.13
 
 _dist_cl = globalParameters.distractor_clearance
+_n_distractors = globalParameters.n_distractors
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Task objects at canonical positions (bowl-on-plate task)
@@ -52,10 +53,23 @@ plate = new LIBEROObject with libero_name "plate_1",
                           with width 0.20, with length 0.20, with height 0.02,
                           at Vector(0.05, -0.02, TABLE_Z)
 
-ramekin = new LIBEROObject with libero_name "glazed_rim_porcelain_ramekin_1",
-                            with asset_class "glazed_rim_porcelain_ramekin",
-                            with width 0.08, with length 0.08, with height 0.05,
-                            at Vector(0.10, 0.12, TABLE_Z)
+cream_cheese = new LIBEROObject with libero_name "cream_cheese_1",
+                                 with asset_class "cream_cheese",
+                                 with width 0.08, with length 0.08, with height 0.05,
+                                 at Vector(0.10, 0.12, TABLE_Z)
+
+wine_bottle = new LIBEROObject with libero_name "wine_bottle_1",
+                                with asset_class "wine_bottle",
+                                with width 0.08, with length 0.08, with height 0.20,
+                                at Vector(-0.14, -0.05, TABLE_Z)
+
+# Fixed fixtures on the tabletop for this task. Distractors must avoid them too.
+wooden_cabinet = new LIBEROFixture at Vector(0.03, -0.24, TABLE_Z),
+                                    with libero_name "wooden_cabinet_1"
+flat_stove = new LIBEROFixture at Vector(-0.41, 0.21, TABLE_Z),
+                                with libero_name "flat_stove_1"
+wine_rack = new LIBEROFixture at Vector(-0.26, -0.26, TABLE_Z),
+                               with libero_name "wine_rack_1"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Distractor pool — sourced from the canonical JSON via libero_model.scenic.
@@ -88,13 +102,13 @@ param distractor_3_class = distractor_classes[3]
 param distractor_4_class = distractor_classes[4]
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Clearance constraints (all slots — inactive ones never appear in MuJoCo)
+# Clearance constraints. Slot i is enforced only when n_distractors > i.
 # ──────────────────────────────────────────────────────────────────────────────
 # Distractor-to-task-object
-_task_objects = [bowl, plate, ramekin]
-for d in distractors:
+_task_objects = [bowl, plate, cream_cheese, wine_bottle]
+for _i, d in enumerate(distractors):
     for t in _task_objects:
-        require (distance from d to t) > _dist_cl
+        require (_n_distractors <= _i) or ((distance from d to t) > _dist_cl)
 
 # Distractor-to-distractor: compact objects (≤0.08 m footprint) need at least
 # their footprint diagonal / 2 ≈ 0.057 m centre-to-centre clearance; 0.06 adds
@@ -103,4 +117,14 @@ for d in distractors:
 _d2d_clearance = 0.06
 for i in range(5):
     for j in range(i + 1, 5):
-        require (distance from distractors[i] to distractors[j]) > _d2d_clearance
+        require (
+            (_n_distractors <= i)
+            or (_n_distractors <= j)
+            or ((distance from distractors[i] to distractors[j]) > _d2d_clearance)
+        )
+
+# Distractor-to-fixture clearance
+for _i, d in enumerate(distractors):
+    require (_n_distractors <= _i) or ((distance from d to wooden_cabinet) > 0.2680)
+    require (_n_distractors <= _i) or ((distance from d to flat_stove) > 0.2622)
+    require (_n_distractors <= _i) or ((distance from d to wine_rack) > 0.1642)

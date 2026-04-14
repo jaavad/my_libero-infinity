@@ -12,8 +12,10 @@ from dataclasses import dataclass
 
 from libero_infinity.asset_registry import (
     ASSET_VARIANTS,
+    DEFAULT_DISTRACTOR_POOL,
     UNLOADABLE_ASSET_CLASSES,
     get_dimensions,
+    get_distractor_pool,
     get_variants,
 )
 from libero_infinity.ir.nodes import (
@@ -23,7 +25,7 @@ from libero_infinity.ir.nodes import (
     PlanDiagnostics,
 )
 from libero_infinity.ir.scene_graph import SemanticSceneGraph
-from libero_infinity.planner.types import BackgroundPlan, LightingPlan, TexturePlan
+from libero_infinity.planner.types import BackgroundPlan, LightingPlan, RobotInitPlan, TexturePlan
 
 # ---------------------------------------------------------------------------
 # Dataclasses
@@ -60,6 +62,24 @@ class CameraPlan:
 # ---------------------------------------------------------------------------
 
 _CONTAINER_INTERIOR_SCALE = 0.85  # interior ≈ 85% of bounding box dims
+_PANDA_INIT_QPOS = (
+    0.0,
+    -1.61037389e-01,
+    0.0,
+    -2.44459747e00,
+    0.0,
+    2.22675220e00,
+    math.pi / 4.0,
+)
+_PANDA_JOINT_NAMES = (
+    "robot0_joint1",
+    "robot0_joint2",
+    "robot0_joint3",
+    "robot0_joint4",
+    "robot0_joint5",
+    "robot0_joint6",
+    "robot0_joint7",
+)
 
 
 def _container_interior_dims(container_class: str) -> tuple[float, float, float]:
@@ -350,6 +370,25 @@ def plan_lighting(
     )
 
 
+def plan_robot(
+    graph: SemanticSceneGraph,
+    request_axes: frozenset[str],
+    diagnostics: PlanDiagnostics,
+) -> RobotInitPlan | None:
+    """Plan joint-space robot reset perturbation for Panda tasks."""
+    del graph, diagnostics
+    if "robot" not in request_axes:
+        return None
+
+    return RobotInitPlan(
+        canonical_qpos=_PANDA_INIT_QPOS,
+        radius_lo=0.1,
+        radius_hi=0.5,
+        joint_names=_PANDA_JOINT_NAMES,
+        robot_model="Panda",
+    )
+
+
 # ---------------------------------------------------------------------------
 # plan_texture
 # ---------------------------------------------------------------------------
@@ -425,12 +464,14 @@ def plan_distractor(
         if isinstance(node, (ObjectNode, MovableSupportNode)):
             scene_classes.add(node.object_class)
 
-    # Available distractor classes: all ASSET_VARIANTS keys minus unloadable and task objects
-    distractor_classes = [
-        cls
-        for cls in ASSET_VARIANTS.keys()
-        if cls not in UNLOADABLE_ASSET_CLASSES and cls not in scene_classes
-    ]
+    # Use the curated distractor pool instead of every asset variant class.
+    distractor_classes = get_distractor_pool(exclude_classes=scene_classes)
+    if not distractor_classes:
+        distractor_classes = [
+            cls
+            for cls in DEFAULT_DISTRACTOR_POOL
+            if cls not in UNLOADABLE_ASSET_CLASSES and cls not in scene_classes
+        ]
 
     return budget, distractor_classes
 

@@ -37,6 +37,7 @@ SCENIC_FILES = [
     "position_perturbation.scenic",
     "object_perturbation.scenic",
     "combined_perturbation.scenic",
+    "robot_perturbation.scenic",
     "camera_perturbation.scenic",
     "lighting_perturbation.scenic",
     "distractor_perturbation.scenic",
@@ -62,6 +63,9 @@ SCENIC_PARAMS = {
         "min_clearance": 0.12,
     },
     "camera_perturbation.scenic": {
+        "bddl_path": BOWL_BDDL,
+    },
+    "robot_perturbation.scenic": {
         "bddl_path": BOWL_BDDL,
     },
     "lighting_perturbation.scenic": {

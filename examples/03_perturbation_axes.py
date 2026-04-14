@@ -1,4 +1,4 @@
-"""Perturbation axes survey — demonstrates all 6 axes.
+"""Perturbation axes survey — demonstrates the major perturbation axes.
 
 For each perturbation axis, the environment is reset twice and the sampled
 Scenic scene parameters are printed.  This shows concretely what each axis
@@ -7,10 +7,11 @@ randomises on every call to reset().
 Perturbation axes:
   position    — object (x, y) placement over the reachable workspace
   object      — visual identity (mesh + texture) from asset variant pools
+  robot       — Panda arm joint-reset perturbation around canonical init_qpos
   camera      — agentview position offset and tilt angle
   lighting    — scene illumination (intensity, ambient level)
   distractor  — clutter objects placed near task objects
-  combined    — preset: position + object identity (most common for eval)
+  combined    — preset including robot, object, position, and environment shifts
 
 Run from the repo root:
 
@@ -47,6 +48,7 @@ _BDDL_PATH = (
 PERTURBATION_AXES = [
     "position",
     "object",
+    "robot",
     "camera",
     "lighting",
     "distractor",
@@ -81,10 +83,11 @@ def demo_axis(axis: str) -> None:
     _DESCRIPTIONS = {
         "position":   "Object (x, y) placement — uniform over reachable workspace",
         "object":     "Visual identity (mesh + texture) from 34 asset variant pools",
+        "robot":      "Panda arm init_qpos perturbation with radius sampled in [0.1, 0.5]",
         "camera":     "Agentview camera position offset (±0.10 m) and tilt (±15°)",
         "lighting":   "Illumination — intensity [0.4, 2.0], ambient [0.05, 0.6]",
         "distractor": "1–5 clutter objects placed near task objects",
-        "combined":   "Preset: position + object identity (most common for evaluation)",
+        "combined":   "Preset including position, object, robot, camera, lighting, distractor, and background",
     }
     print(f"  What varies: {_DESCRIPTIONS.get(axis, '(see docs/scenic_perturbations.md)')}\n")
 
@@ -149,7 +152,7 @@ def main() -> None:
     print("=== LIBERO-Infinity: Perturbation Axes Survey ===\n")
     print(f"Task BDDL : {_BDDL_PATH.name}")
     print(
-        "For each of the 6 perturbation axes, the environment is reset twice\n"
+        "For each axis, the environment is reset twice\n"
         "and the sampled Scenic scene parameters are printed.\n"
     )
 
@@ -162,10 +165,11 @@ def main() -> None:
     print(
         "  position   — continuous uniform XY over the table workspace\n"
         "  object     — swap object meshes + textures from asset pools\n"
+        "  robot      — perturb Panda init_qpos in joint space\n"
         "  camera     — shift agentview camera position and viewing angle\n"
         "  lighting   — vary scene illumination (intensity + ambient)\n"
         "  distractor — add 1–5 random clutter objects to the scene\n"
-        "  combined   — position + object (preset for standard evaluation)\n"
+        "  combined   — broad preset including robot and environment shifts\n"
         "\nAll axes are composable: e.g. perturbation='position,camera,lighting'\n"
         "See docs/scenic_perturbations.md for full parameter details."
     )

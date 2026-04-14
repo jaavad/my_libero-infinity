@@ -7,10 +7,17 @@ quit.
 
 Usage
 -----
+    # Auto-generate Scenic from the BDDL (default mode)
     python scripts/viewer.py \\
         --suite libero_spatial \\
         --bddl pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate \\
         --perturbation position
+
+    # Use a hand-written Scenic program from scenic/
+    python scripts/viewer.py \\
+        --suite libero_spatial \\
+        --bddl pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate \\
+        --scenic position_perturbation
 
     # Or pass a full BDDL path directly:
     python scripts/viewer.py \\
@@ -38,6 +45,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import pathlib
+import re
 import sys
 import textwrap
 
@@ -48,6 +56,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 _BDDL_ROOT = (
     _REPO_ROOT / "src" / "libero_infinity" / "data" / "libero_runtime" / "bddl_files"
 )
+_SCENIC_ROOT = _REPO_ROOT / "scenic"
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 
 SUITES = ["libero_spatial", "libero_object", "libero_goal", "libero_10", "libero_90"]
@@ -61,6 +70,12 @@ PERTURBATION_CHOICES = [
     "lighting",
     "full",
 ]
+
+_VIEWER_SCENIC_OVERRIDES = {
+    # The simulator's camera perturbation hook consumes offset-style params
+    # emitted by the hand-written Scenic file, not the compiler's cam_* schema.
+    "camera": _SCENIC_ROOT / "camera_perturbation.scenic",
+}
 
 # ---------------------------------------------------------------------------
 # Viewer availability check
@@ -146,6 +161,88 @@ def _resolve_bddl(bddl_arg: str, suite: str | None) -> pathlib.Path:
     )
 
 
+def _resolve_scenic(scenic_arg: str) -> pathlib.Path:
+    """Resolve a Scenic path or shorthand name.
+
+    Resolution order:
+    1. Exact existing path.
+    2. `scenic/<name>`
+    3. `scenic/<name>.scenic`
+    """
+    candidate = pathlib.Path(scenic_arg)
+    if candidate.exists():
+        return candidate.resolve()
+
+    root_candidate = _SCENIC_ROOT / scenic_arg
+    if root_candidate.exists():
+        return root_candidate.resolve()
+
+    stem = scenic_arg if scenic_arg.endswith(".scenic") else f"{scenic_arg}.scenic"
+    root_candidate = _SCENIC_ROOT / stem
+    if root_candidate.exists():
+        return root_candidate.resolve()
+
+    available = sorted(p.name for p in _SCENIC_ROOT.glob("*.scenic"))
+    sys.exit(
+        f"ERROR: Scenic program '{scenic_arg}' not found.\n"
+        f"  Looked for: {candidate}, {_SCENIC_ROOT / scenic_arg}, {_SCENIC_ROOT / stem}\n"
+        f"  Available hand-written Scenic files: {available}"
+    )
+
+
+def _arg_supplied(argv: list[str] | None, *names: str) -> bool:
+    """Return True if any of the given CLI flags were explicitly provided."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    return any(name in args for name in names)
+
+
+def _viewer_default_scenic(perturbation: str) -> pathlib.Path | None:
+    """Return a hand-written Scenic file the viewer should prefer, if any."""
+    path = _VIEWER_SCENIC_OVERRIDES.get(perturbation)
+    if path is None:
+        return None
+    return path.resolve()
+
+
+def _extract_scenic_libero_names(scenic_path: pathlib.Path) -> set[str]:
+    """Best-effort static extraction of literal libero_name references."""
+    text = scenic_path.read_text()
+    pattern = re.compile(r'with\s+libero_name\s+(?:f)?["\']([^"\']+)["\']')
+    return set(pattern.findall(text))
+
+
+def _validate_scenic_bddl_compatibility(
+    scenic_path: pathlib.Path,
+    bddl_path: pathlib.Path,
+) -> None:
+    """Reject explicit Scenic files that mention names absent from the BDDL."""
+    from libero_infinity.task_config import TaskConfig
+
+    scenic_names = {
+        name
+        for name in _extract_scenic_libero_names(scenic_path)
+        if not name.startswith("distractor_")
+    }
+    if not scenic_names:
+        return
+
+    cfg = TaskConfig.from_bddl(bddl_path)
+    valid_names = {obj.instance_name for obj in cfg.movable_objects}
+    valid_names.update(fixture.instance_name for fixture in cfg.fixtures)
+
+    missing = sorted(name for name in scenic_names if name not in valid_names)
+    if not missing:
+        return
+
+    raise SystemExit(
+        "ERROR: Scenic file does not match the requested BDDL task.\n"
+        f"  Scenic: {scenic_path}\n"
+        f"  BDDL:   {bddl_path}\n"
+        f"  Names referenced by Scenic but absent from BDDL: {missing}\n"
+        "  Use a task-compatible hand-written Scenic file or omit --scenic."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Scene sampler — reusable across resets
 # ---------------------------------------------------------------------------
@@ -161,9 +258,11 @@ class SceneSession:
         self,
         bddl_path: pathlib.Path,
         perturbation: str,
+        scenic_path: pathlib.Path | None = None,
     ) -> None:
         self.bddl_path = bddl_path
         self.perturbation = perturbation
+        self.scenic_path = scenic_path
 
         self._scenario = None
         self._orig_obj_classes: dict = {}
@@ -180,16 +279,22 @@ class SceneSession:
         """Compile the Scenic scenario (one-time cost, ~2-5 s)."""
         import scenic
 
-        from libero_infinity.scenic_generator import generate_scenic_file
+        from libero_infinity.compiler import generate_scenic_file
         from libero_infinity.task_config import TaskConfig
 
         print(f"  Loading task:    {self.bddl_path.name}")
         print(f"  Perturbation:    {self.perturbation}")
-        print("  Compiling Scenic scenario …", flush=True)
-
-        cfg = TaskConfig.from_bddl(str(self.bddl_path))
-        scenic_path = generate_scenic_file(cfg, perturbation=self.perturbation)
-        self._generated_scenic_path = scenic_path
+        if self.scenic_path is None:
+            print("  Scenic source:   generated", flush=True)
+            print("  Compiling Scenic scenario …", flush=True)
+            cfg = TaskConfig.from_bddl(str(self.bddl_path))
+            scenic_path = generate_scenic_file(cfg, perturbation=self.perturbation)
+            self._generated_scenic_path = scenic_path
+        else:
+            _validate_scenic_bddl_compatibility(self.scenic_path, self.bddl_path)
+            scenic_path = str(self.scenic_path)
+            print(f"  Scenic source:   {self.scenic_path.name}", flush=True)
+            print("  Compiling Scenic scenario …", flush=True)
 
         params = {"bddl_path": str(self.bddl_path)}
         self._scenario = scenic.scenarioFromFile(scenic_path, params=params)
@@ -285,7 +390,10 @@ def run_viewer(session: SceneSession) -> None:
         "│  LIBERO-Infinity Interactive Viewer                      │\n"
         "├─────────────────────────────────────────────────────────┤\n"
         "│  R / Space / Enter  →  resample a new scene              │\n"
-        "│  Q               →  quit                                 │\n"
+        "│  Left drag        →  rotate / orbit camera               │\n"
+        "│  Right drag       →  pan camera                          │\n"
+        "│  Scroll / middle  →  zoom camera                         │\n"
+        "│  Q                →  quit                                │\n"
         "└─────────────────────────────────────────────────────────┘",
         flush=True,
     )
@@ -349,7 +457,7 @@ def run_viewer(session: SceneSession) -> None:
                     # MuJoCo >= 3.x passive viewer supports reload via
                     # handle.load(mjmodel_new, mjdata_new) when available.
                     try:
-                        handle.load(mjmodel_new, mjdata_new)
+                        _reload_viewer_handle(handle, mjmodel_new, mjdata_new)
                         mjmodel, mjdata = mjmodel_new, mjdata_new
                     except AttributeError:
                         # Older mujoco.viewer without load() — close and
@@ -385,6 +493,9 @@ def run_viewer_restart_on_resample(session: SceneSession) -> None:
         "│  LIBERO-Infinity Interactive Viewer                      │\n"
         "├─────────────────────────────────────────────────────────┤\n"
         "│  R / Space / Enter  →  resample a new scene              │\n"
+        "│  Left drag        →  rotate / orbit camera               │\n"
+        "│  Right drag       →  pan camera                          │\n"
+        "│  Scroll / middle  →  zoom camera                         │\n"
         "│  Q / close window   →  quit                              │\n"
         "└─────────────────────────────────────────────────────────┘",
         flush=True,
@@ -433,6 +544,32 @@ def run_viewer_restart_on_resample(session: SceneSession) -> None:
             _state["quit"] = True
 
 
+def _reload_viewer_handle(handle, mjmodel, mjdata) -> None:
+    """Reload a passive viewer handle across MuJoCo API variants."""
+    load = getattr(handle, "load", None)
+    if callable(load):
+        load(mjmodel, mjdata)
+        return
+
+    sim_ref = getattr(handle, "_sim", None)
+    sim = sim_ref() if callable(sim_ref) else None
+    sim_load = getattr(sim, "load", None)
+    if callable(sim_load):
+        sim_load(mjmodel, mjdata, "")
+        return
+
+    raise AttributeError("passive viewer handle has no reload support")
+
+
+def _viewer_supports_reload(mjv_module) -> bool:
+    """True if this mujoco.viewer build can hot-reload model/data."""
+    handle_cls = getattr(mjv_module, "Handle", object)
+    if hasattr(handle_cls, "load"):
+        return True
+    simulate_cls = getattr(mjv_module, "_Simulate", None)
+    return simulate_cls is not None and hasattr(simulate_cls, "load")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -473,6 +610,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--scenic",
+        default=None,
+        metavar="SCENIC",
+        help=(
+            "Optional Scenic program to load instead of auto-generating one from the BDDL. "
+            "Accepts an explicit path or a hand-written file name from scenic/, "
+            "e.g. 'position_perturbation' or 'scenic/position_perturbation.scenic'."
+        ),
+    )
+    p.add_argument(
         "--no-restart",
         action="store_true",
         default=False,
@@ -489,9 +636,19 @@ def main(argv: list[str] | None = None) -> None:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.scenic and _arg_supplied(argv, "--perturbation"):
+        print(
+            "WARNING: --perturbation is ignored when --scenic is provided; "
+            "the viewer will load the explicit Scenic program.",
+            file=sys.stderr,
+            flush=True,
+        )
 
     bddl_path = _resolve_bddl(args.bddl, args.suite)
+    scenic_path = _resolve_scenic(args.scenic) if args.scenic else _viewer_default_scenic(args.perturbation)
     print(f"\nBDDL:          {bddl_path}")
+    if scenic_path is not None:
+        print(f"Scenic:        {scenic_path}")
 
     # Bootstrap LIBERO runtime paths (downloads assets to ~/.libero if needed).
     try:
@@ -500,14 +657,19 @@ def main(argv: list[str] | None = None) -> None:
     except ImportError:
         pass  # older installations without runtime module
 
-    session = SceneSession(bddl_path, args.perturbation)
+    session = SceneSession(bddl_path, args.perturbation, scenic_path=scenic_path)
 
     try:
-        # Attempt the single-window with in-place reload first.
-        run_viewer(session)
+        import mujoco.viewer as mjv
+
+        supports_in_place_reload = _viewer_supports_reload(mjv)
+        if supports_in_place_reload:
+            run_viewer(session)
+        else:
+            run_viewer_restart_on_resample(session)
     except Exception as exc:
-        # If run_viewer raised (e.g. handle.load unsupported or GLFW issue),
-        # fall back to the restart-on-resample approach.
+        # If run_viewer raised (e.g. GLFW issue), fall back to restart mode
+        # only when this build truly lacks passive-viewer reload support.
         err_str = str(exc).lower()
         if "display" in err_str or "glfw" in err_str or "x11" in err_str:
             sys.exit(
@@ -520,6 +682,8 @@ def main(argv: list[str] | None = None) -> None:
             f"  [info] Falling back to restart-on-resample viewer ({exc})",
             flush=True,
         )
+        if _viewer_supports_reload(mjv):
+            raise
         run_viewer_restart_on_resample(session)
     finally:
         session.close()

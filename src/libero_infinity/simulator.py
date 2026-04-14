@@ -106,6 +106,7 @@ DEFAULT_ORIENTATIONS: dict[str, np.ndarray] = {
     "_default": _QUAT_UPRIGHT_X90,
     "simple_rack": np.array([0.0, 0.0, 0.0, 1.0]),  # flat (no rotation)
 }
+EXPECTED_PANDA_ARM_DOF = 7
 
 
 def _footprint_clearance_xy(
@@ -586,6 +587,11 @@ class LIBEROSimulation(Simulation):
             libero_name = getattr(obj, "libero_name", None)
             if not libero_name:
                 continue
+            # Distractors are injected via patched BDDL and do not have a meaningful
+            # canonical reset pose. Their qpos often starts near the origin before
+            # Scenic injection, which would corrupt root-surface inference.
+            if libero_name.startswith("distractor_"):
+                continue
             joint_name = f"{libero_name}_joint0"
             try:
                 qpos = sim_data.get_joint_qpos(joint_name)
@@ -615,6 +621,7 @@ class LIBEROSimulation(Simulation):
 
         self._canonical_rot = dict(default_rot)
         root_surface_z = _infer_root_surface_z(self.scene.objects, default_pose)
+        self._apply_robot_perturbation()
 
         # ── inject Scenic-sampled positions ───────────────────────────────
         n_injected = 0
@@ -680,7 +687,7 @@ class LIBEROSimulation(Simulation):
         self._apply_texture_perturbation()
         self._apply_background_perturbation()
 
-        if n_injected > 0 or self._has_env_perturbation():
+        if n_injected > 0 or self._has_env_perturbation() or self._has_robot_perturbation():
             import mujoco
 
             mjmodel = self.libero_env.env.sim.model._model
@@ -708,8 +715,18 @@ class LIBEROSimulation(Simulation):
                 table_spawned_names=table_spawned_names,
             )
 
-            # Refresh observation so the first frame reflects settled state.
-            self._last_obs = self.libero_env.env._get_observations()
+            # Settling steps can nudge the arm slightly under controller dynamics.
+            # Re-apply the sampled reset so the first policy observation matches
+            # the Scenic-sampled robot start state exactly.
+            if self._has_robot_perturbation():
+                self._apply_robot_perturbation()
+
+            # Refresh observables so the first frame reflects the settled state
+            # without advancing the episode by an extra control step.
+            self.libero_env.check_success()
+            self.libero_env._post_process()
+            self.libero_env._update_observables(force=True)
+            self._last_obs = self.libero_env.env._get_observations(force_update=True)
             self._validate_task_relevant_visibility(object_dimensions=object_dimensions)
 
         # Cache action dimension for step() — avoids per-step lookups.
@@ -1057,6 +1074,12 @@ class LIBEROSimulation(Simulation):
             if dims_a is None:
                 continue
             for name_b in names[i + 1 :]:
+                # Only police overlap for pairs influenced by table-surface
+                # injection. Canonical BDDL-authored pairs can be close by
+                # design, and this validator is meant to catch Scenic-induced
+                # bad samples rather than task-author layout choices.
+                if name_a not in table_spawned_names and name_b not in table_spawned_names:
+                    continue
                 if (
                     support_parent_names.get(name_a) == name_b
                     or support_parent_names.get(name_b) == name_a
@@ -1136,6 +1159,83 @@ class LIBEROSimulation(Simulation):
                 "table_texture",
             )
         )
+
+    def _has_robot_perturbation(self) -> bool:
+        """True if Scenic sampled a robot init-qpos vector for this scene."""
+        if self.scene is None:
+            return False
+        params = getattr(self.scene, "params", {})
+        robot_qpos = params.get("robot_init_qpos")
+        if isinstance(robot_qpos, (list, tuple)):
+            return len(robot_qpos) > 0
+        return any(params.get(f"robot_init_qpos_{idx}") is not None for idx in range(EXPECTED_PANDA_ARM_DOF))
+
+    def _apply_robot_perturbation(self) -> None:
+        """Apply a Scenic-sampled Panda init_qpos perturbation to the arm joints."""
+        if self.scene is None or self.libero_env is None:
+            return
+        params = getattr(self.scene, "params", {})
+        robot_qpos = params.get("robot_init_qpos")
+        if robot_qpos is None:
+            per_joint = [params.get(f"robot_init_qpos_{idx}") for idx in range(EXPECTED_PANDA_ARM_DOF)]
+            if not any(value is not None for value in per_joint):
+                return
+            robot_qpos = per_joint
+        if not isinstance(robot_qpos, (list, tuple)):
+            return
+
+        qpos = np.asarray(robot_qpos, dtype=float)
+        if qpos.shape != (EXPECTED_PANDA_ARM_DOF,):
+            raise ScenarioValidationError(
+                f"robot_init_qpos must be length {EXPECTED_PANDA_ARM_DOF}, got shape {qpos.shape}"
+            )
+        if not np.all(np.isfinite(qpos)):
+            raise ScenarioValidationError("robot_init_qpos contains non-finite values")
+
+        env = self.libero_env.env
+        robot = env.robots[0]
+        sim = env.sim
+        joint_indexes = np.asarray(getattr(robot, "_ref_joint_pos_indexes", ()), dtype=int)
+        joint_names = tuple(getattr(robot, "robot_joints", ()))
+        if joint_indexes.shape != (EXPECTED_PANDA_ARM_DOF,) or len(joint_names) != EXPECTED_PANDA_ARM_DOF:
+            raise ScenarioValidationError(
+                "Unexpected Panda joint layout while applying robot_init_qpos perturbation"
+            )
+
+        lower = []
+        upper = []
+        for joint_name in joint_names:
+            joint_id = int(sim.model.joint_name2id(joint_name))
+            lo, hi = sim.model.jnt_range[joint_id]
+            lower.append(float(lo))
+            upper.append(float(hi))
+        lower_arr = np.asarray(lower, dtype=float)
+        upper_arr = np.asarray(upper, dtype=float)
+        clipped = np.clip(qpos, lower_arr, upper_arr)
+        if not np.allclose(qpos, clipped, atol=1e-8):
+            log.debug("  robot init qpos clipped to joint limits")
+            qpos = clipped
+
+        sim.data.qpos[joint_indexes] = qpos
+        sim.data.qvel[joint_indexes] = 0.0
+        try:
+            sim.forward()
+        except Exception:
+            pass
+        if hasattr(robot, "init_qpos"):
+            robot.init_qpos = qpos.copy()
+        if hasattr(robot, "recent_qpos") and hasattr(robot.recent_qpos, "push"):
+            robot.recent_qpos.push(qpos.copy())
+
+        controller = getattr(robot, "controller", None)
+        if controller is not None:
+            controller.update()
+            controller.joint_pos = qpos.copy()
+            if hasattr(controller, "update_initial_joints"):
+                controller.update_initial_joints(qpos.copy())
+
+        self._applied_robot_init_qpos = qpos.copy()
+        log.debug("  robot init qpos: %s", np.array2string(qpos, precision=4))
 
     def _apply_articulation_perturbation(self) -> None:
         """Apply sampled articulation qpos values from Scenic params."""

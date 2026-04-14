@@ -51,6 +51,7 @@ class TestScenicCompilation:
             "position_perturbation.scenic",
             "object_perturbation.scenic",
             "combined_perturbation.scenic",
+            "robot_perturbation.scenic",
         ],
     )
     def test_compiles(self, scenic_file):
@@ -400,6 +401,7 @@ class TestNewScenicPrograms:
         [
             "camera_perturbation.scenic",
             "lighting_perturbation.scenic",
+            "robot_perturbation.scenic",
             "verifai_position.scenic",
         ],
     )
@@ -437,6 +439,18 @@ class TestNewScenicPrograms:
         scene, _ = scenario.generate(maxIterations=100, verbosity=0)
         assert "light_intensity" in scene.params
         assert 0.39 <= scene.params["light_intensity"] <= 2.01
+
+    def test_robot_params_sampled(self):
+        import scenic as sc
+
+        path = SCENIC_DIR / "robot_perturbation.scenic"
+        scenario = sc.scenarioFromFile(str(path), params={"bddl_path": ""})
+        scene, _ = scenario.generate(maxIterations=100, verbosity=0)
+        assert "robot_init_radius" in scene.params
+        assert 0.1 <= scene.params["robot_init_radius"] <= 0.5
+        qpos = scene.params["robot_init_qpos"]
+        assert len(qpos) == 7
+        assert all(np.isfinite(qpos))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -486,7 +500,26 @@ class TestDistractorPerturbation:
 
     def test_distractor_clearance(self, scenes):
         for scene, _ in scenes:
-            assert_pairwise_clearance(scene, min_clearance=0.05, xy_only=True)
+            n = int(scene.params["n_distractors"])
+            active_names = {
+                "akita_black_bowl_1",
+                "plate_1",
+                "cream_cheese_1",
+                "wine_bottle_1",
+                *(f"distractor_{i}" for i in range(n)),
+            }
+            filtered = [
+                obj for obj in scene.objects if getattr(obj, "libero_name", "") in active_names
+            ]
+            for i, a in enumerate(filtered):
+                for b in filtered[i + 1 :]:
+                    pa = np.array([a.position.x, a.position.y])
+                    pb = np.array([b.position.x, b.position.y])
+                    dist = np.linalg.norm(pa - pb)
+                    assert dist >= 0.049, (
+                        f"Clearance violation: {a.libero_name} ↔ {b.libero_name} "
+                        f"dist={dist:.3f} < 0.05"
+                    )
 
     def test_distractor_class_diversity(self, scenes):
         all_classes = set()
@@ -1033,6 +1066,12 @@ class TestLiberoCorpusAudit:
 
         path = generate_scenic_file(bowl_config, perturbation="distractor")
         try:
+            code = pathlib.Path(path).read_text()
+            assert "param distractor_0_class = Uniform(*_distractor_pool)" in code
+            assert "_n_distractors = globalParameters.n_distractors" in code
+            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to wooden_cabinet_1)" in code
+            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to flat_stove_1)" in code
+            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to wine_rack_1)" in code
             scenario = sc.scenarioFromFile(path)
             scene, _ = scenario.generate(maxIterations=2000, verbosity=0)
             assert "n_distractors" in scene.params

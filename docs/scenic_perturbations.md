@@ -2,9 +2,11 @@
 
 [Back to main README](../README.md)
 
-LIBERO-Infinity provides **eight composable perturbation axes**, each defined as a Scenic 3
-distribution with explicit constraint checking via rejection sampling. This document covers
-all axes in detail with parameters, examples, and screenshots.
+LIBERO-Infinity provides **nine composable perturbation axes** in total. The
+hand-written Scenic examples cover the main scene-space distributions, while
+`robot`, `background`, and `articulation` are also exposed through Scenic
+parameters emitted by the planner/runtime layers. This document covers all axes
+in detail with parameters, examples, and screenshots.
 
 ---
 
@@ -14,6 +16,7 @@ all axes in detail with parameters, examples, and screenshots.
 |------|------------|-------------|----------------|
 | [Position](#position-perturbation) | Object (x, y) placement | `position_perturbation.scenic` | `min_clearance`, `ood_margin` |
 | [Object](#object-perturbation) | Visual identity (mesh + texture) | `object_perturbation.scenic` | `perturb_class`, `include_canonical` |
+| [Robot](#robot-perturbation) | Panda arm joint reset | `robot_perturbation.scenic` | `robot_radius_lo`, `robot_radius_hi` |
 | [Camera](#camera-perturbation) | Viewpoint position and tilt | `camera_perturbation.scenic` | `camera_*_offset`, `camera_tilt` |
 | [Lighting](#lighting-perturbation) | Scene illumination | `lighting_perturbation.scenic` | `light_intensity`, `ambient_level` |
 | [Texture](#texture-perturbation) | Table surface material | *(via Scenic params)* | `table_texture` |
@@ -29,7 +32,7 @@ All axes are arbitrarily composable:
 --perturbation position                    # single axis
 --perturbation position,camera             # two axes
 --perturbation object,lighting,distractor  # three axes
---perturbation combined                    # preset: position + object
+--perturbation combined                    # preset: position + object + robot + camera + lighting + distractor + background
 --perturbation full                        # all axes
 ```
 
@@ -165,6 +168,40 @@ All variants are stored in `src/libero_infinity/data/asset_variants.json`.
 
 ---
 
+## Robot Perturbation
+
+**File:** `scenic/robot_perturbation.scenic`
+
+Perturbs the Panda arm's canonical 7-DOF `init_qpos` in joint space. This
+matches the `LIBERO-plus` semantics of moving the arm's starting configuration
+without changing the robot base pose.
+
+### Screenshots
+
+<table>
+<tr>
+<td align="center"><strong>Default</strong></td>
+<td align="center"><strong>Robot Perturbed</strong></td>
+</tr>
+<tr>
+<td><img src="../assets/libero_agentview_default.png" width="220"></td>
+<td><img src="../assets/libero_robot_0.png" width="220"></td>
+</tr>
+</table>
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `robot_radius_lo` | `0.1` | Minimum joint-space perturbation radius |
+| `robot_radius_hi` | `0.5` | Maximum joint-space perturbation radius |
+| `robot_init_qpos` | *(sampled)* | Resulting 7-joint Panda reset vector |
+
+The resulting end-effector pose generally changes in `x`, `y`, and `z`, but the
+distribution itself is defined in joint space rather than Cartesian space.
+
+---
+
 ## Camera Perturbation
 
 **File:** `scenic/camera_perturbation.scenic`
@@ -259,6 +296,12 @@ No dedicated `.scenic` file -- texture perturbation is controlled via Scenic glo
 Adds 1-N non-task clutter objects to test whether the policy can identify the
 object of interest amid distractions.
 
+### Screenshot
+
+<p align="center">
+  <img src="../assets/libero_distractor_0.png" width="260" alt="Distractor perturbation screenshot">
+</p>
+
 ### Usage
 
 ```bash
@@ -305,6 +348,12 @@ carries a specific, reproducible texture name. If the named texture is not loade
 current MuJoCo model the simulator falls back to a randomly loaded texture rather than
 silently no-oping.
 
+### Screenshot
+
+<p align="center">
+  <img src="../assets/libero_background_0.png" width="260" alt="Background perturbation screenshot">
+</p>
+
 ### Parameters
 
 | Parameter | Default | Description |
@@ -337,7 +386,9 @@ uniformly from the per-state `[lo, hi]` range defined in the articulation model.
 
 **File:** `scenic/combined_perturbation.scenic`
 
-Composes position and object perturbation into a single Scenic program.
+Composes position and object perturbation into a single hand-written Scenic
+program. The generated CLI/compiler preset `combined` is broader: it expands to
+`position,object,robot,camera,lighting,distractor,background`.
 
 ### Screenshots
 

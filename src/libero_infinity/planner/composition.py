@@ -23,6 +23,7 @@ from libero_infinity.planner.axes import (
     plan_distractor,
     plan_lighting,
     plan_object,
+    plan_robot,
     plan_texture,
 )
 from libero_infinity.planner.position import (
@@ -37,7 +38,9 @@ from libero_infinity.planner.types import PerturbationPlan
 # ---------------------------------------------------------------------------
 
 AXIS_PRESETS: dict[str, frozenset[str]] = {
-    "combined": frozenset(["position", "object", "camera", "lighting", "distractor", "background"]),
+    "combined": frozenset(
+        ["position", "object", "camera", "lighting", "distractor", "background", "robot"]
+    ),
     "full": frozenset(
         [
             "position",
@@ -48,6 +51,7 @@ AXIS_PRESETS: dict[str, frozenset[str]] = {
             "distractor",
             "articulation",
             "background",
+            "robot",
         ]
     ),
 }
@@ -107,6 +111,9 @@ def plan_perturbations(
 
     if "object" in axes:
         plan.object_substitutions = plan_object(graph, axes, diagnostics)
+
+    if "robot" in axes:
+        plan.robot_plan = plan_robot(graph, axes, diagnostics)
 
     # Always plan articulation for goal-reachability safety
     if "articulation" in axes or True:  # noqa: SIM210

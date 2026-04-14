@@ -107,6 +107,15 @@ class TestLIBEROSimulatorIntegration:
         robot_keys = [k for k in obs if "robot" in k or "agentview" in k]
         assert len(robot_keys) >= 1
 
+    def test_setup_refreshes_last_obs(self, simulation):
+        """setup() must refresh cached observations after direct state injection."""
+        cached = simulation.last_obs
+        assert cached is not None
+        fresh = simulation.libero_env.env._get_observations(force_update=True)
+        assert np.array_equal(cached["agentview_image"], fresh["agentview_image"])
+        if "agentview_depth" in cached and "agentview_depth" in fresh:
+            assert np.array_equal(cached["agentview_depth"], fresh["agentview_depth"])
+
     def test_injected_positions_match_scenic(self, scenic_scene, simulation):
         """Positions read from MuJoCo must match Scenic-sampled positions."""
         TOLERANCE_M = 0.05  # 5 cm tolerance after physics settling
@@ -501,6 +510,48 @@ class TestLightingPerturb:
             sim.destroy()
 
 
+@requires_libero
+class TestRobotPerturb:
+    """Robot perturbation modifies the Panda arm init_qpos at reset time."""
+
+    def test_robot_init_qpos_applied(self):
+        import scenic as sc
+        from libero_infinity.simulator import LIBEROSimulator
+
+        path = SCENIC_DIR / "robot_perturbation.scenic"
+        scenario = sc.scenarioFromFile(
+            str(path),
+            params={
+                "bddl_path": str(BOWL_BDDL),
+            },
+        )
+        sim, scene = _setup_with_visibility_retry(
+            lambda s: LIBEROSimulator(bddl_path=str(BOWL_BDDL)).createSimulation(
+                s,
+                maxSteps=10,
+                timestep=0.05,
+                verbosity=0,
+            ),
+            scenario,
+        )
+        try:
+            robot = sim.libero_env.env.robots[0]
+            sim_inner = sim.libero_env.env.sim
+            canonical = np.array(
+                [0.0, -0.161037389, 0.0, -2.44459747, 0.0, 2.2267522, np.pi / 4.0],
+                dtype=float,
+            )
+            applied = np.array(
+                [sim_inner.data.get_joint_qpos(joint_name) for joint_name in robot.robot_joints],
+                dtype=float,
+            )
+            sampled = np.array(scene.params["robot_init_qpos"], dtype=float)
+            assert np.allclose(applied, sampled, atol=1e-6)
+            assert np.linalg.norm(applied - canonical) >= 0.099
+        finally:
+            sim.destroy()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Auto-generated scenic + LIBERO
 # ─────────────────────────────────────────────────────────────────────────────
@@ -764,7 +815,7 @@ class TestDistractorLIBEROIntegration:
 
     def test_distractor_appears_in_mujoco(self):
         import scenic as sc
-        from libero_infinity.simulator import LIBEROSimulator
+        from libero_infinity.simulator import LIBEROSimulator, MIN_SETTLED_Z
 
         path = SCENIC_DIR / "distractor_perturbation.scenic"
         scenario = sc.scenarioFromFile(
@@ -788,13 +839,19 @@ class TestDistractorLIBEROIntegration:
             mj_sim = sim.libero_env.env.sim
             found = 0
             for i in range(n):
+                body_id = None
                 for suffix in (f"distractor_{i}", f"distractor_{i}_main"):
                     try:
-                        mj_sim.model.body_name2id(suffix)
+                        body_id = mj_sim.model.body_name2id(suffix)
                         found += 1
                         break
                     except Exception:
                         pass
+                assert body_id is not None
+                pos = np.array(mj_sim.data.body_xpos[body_id][:3], dtype=float)
+                assert pos[2] >= MIN_SETTLED_Z, (
+                    f"distractor_{i} settled below tabletop: z={pos[2]:.4f}"
+                )
             assert found >= 1
 
             assert sim.last_obs is not None
