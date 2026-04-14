@@ -11,7 +11,6 @@ import pathlib as _pathlib
 from dataclasses import dataclass
 
 from libero_infinity.asset_registry import (
-    ASSET_VARIANTS,
     DEFAULT_DISTRACTOR_POOL,
     UNLOADABLE_ASSET_CLASSES,
     get_dimensions,

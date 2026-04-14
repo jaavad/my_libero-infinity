@@ -340,9 +340,7 @@ def _render_robot(plan: PerturbationPlan, graph: SemanticSceneGraph) -> str:
     lines.append(f"_robot_dir_norm = (({norm_expr}) + 1e-12) ** 0.5")
     qpos_refs: list[str] = []
     for idx, qpos in enumerate(rp.canonical_qpos):
-        expr = (
-            f"{qpos:.8f} + ((_robot_radius * _robot_dir_{idx}) / _robot_dir_norm)"
-        )
+        expr = f"{qpos:.8f} + ((_robot_radius * _robot_dir_{idx}) / _robot_dir_norm)"
         lines.append(f"param robot_init_qpos_{idx} = {expr}")
         qpos_refs.append(f"globalParameters.robot_init_qpos_{idx}")
     lines.append("param robot_init_radius = _robot_radius")

@@ -815,7 +815,7 @@ class TestDistractorLIBEROIntegration:
 
     def test_distractor_appears_in_mujoco(self):
         import scenic as sc
-        from libero_infinity.simulator import LIBEROSimulator, MIN_SETTLED_Z
+        from libero_infinity.simulator import MIN_SETTLED_Z, LIBEROSimulator
 
         path = SCENIC_DIR / "distractor_perturbation.scenic"
         scenario = sc.scenarioFromFile(
@@ -849,9 +849,8 @@ class TestDistractorLIBEROIntegration:
                         pass
                 assert body_id is not None
                 pos = np.array(mj_sim.data.body_xpos[body_id][:3], dtype=float)
-                assert pos[2] >= MIN_SETTLED_Z, (
-                    f"distractor_{i} settled below tabletop: z={pos[2]:.4f}"
-                )
+                msg = f"distractor_{i} settled below tabletop: z={pos[2]:.4f}"
+                assert pos[2] >= MIN_SETTLED_Z, msg
             assert found >= 1
 
             assert sim.last_obs is not None

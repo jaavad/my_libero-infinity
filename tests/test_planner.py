@@ -356,7 +356,12 @@ def test_distractor_classes_draw_from_curated_pool(sample_graph: SemanticSceneGr
     from libero_infinity.asset_registry import DEFAULT_DISTRACTOR_POOL
 
     diag = PlanDiagnostics()
-    _budget, classes = plan_distractor(sample_graph, frozenset(["distractor"]), diag, free_area=0.09)
+    _budget, classes = plan_distractor(
+        sample_graph,
+        frozenset(["distractor"]),
+        diag,
+        free_area=0.09,
+    )
     assert set(classes).issubset(set(DEFAULT_DISTRACTOR_POOL))
 
 

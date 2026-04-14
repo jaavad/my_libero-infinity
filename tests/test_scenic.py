@@ -1069,9 +1069,15 @@ class TestLiberoCorpusAudit:
             code = pathlib.Path(path).read_text()
             assert "param distractor_0_class = Uniform(*_distractor_pool)" in code
             assert "_n_distractors = globalParameters.n_distractors" in code
-            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to wooden_cabinet_1)" in code
-            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to flat_stove_1)" in code
-            assert "require (_n_distractors <= 0) or ((distance from distractor_0 to wine_rack_1)" in code
+            assert (
+                "require (_n_distractors <= 0) or ((distance from distractor_0 to wooden_cabinet_1)"
+            ) in code
+            assert (
+                "require (_n_distractors <= 0) or ((distance from distractor_0 to flat_stove_1)"
+            ) in code
+            assert (
+                "require (_n_distractors <= 0) or ((distance from distractor_0 to wine_rack_1)"
+            ) in code
             scenario = sc.scenarioFromFile(path)
             scene, _ = scenario.generate(maxIterations=2000, verbosity=0)
             assert "n_distractors" in scene.params

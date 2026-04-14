@@ -1168,7 +1168,10 @@ class LIBEROSimulation(Simulation):
         robot_qpos = params.get("robot_init_qpos")
         if isinstance(robot_qpos, (list, tuple)):
             return len(robot_qpos) > 0
-        return any(params.get(f"robot_init_qpos_{idx}") is not None for idx in range(EXPECTED_PANDA_ARM_DOF))
+        return any(
+            params.get(f"robot_init_qpos_{idx}") is not None
+            for idx in range(EXPECTED_PANDA_ARM_DOF)
+        )
 
     def _apply_robot_perturbation(self) -> None:
         """Apply a Scenic-sampled Panda init_qpos perturbation to the arm joints."""
@@ -1177,7 +1180,9 @@ class LIBEROSimulation(Simulation):
         params = getattr(self.scene, "params", {})
         robot_qpos = params.get("robot_init_qpos")
         if robot_qpos is None:
-            per_joint = [params.get(f"robot_init_qpos_{idx}") for idx in range(EXPECTED_PANDA_ARM_DOF)]
+            per_joint = [
+                params.get(f"robot_init_qpos_{idx}") for idx in range(EXPECTED_PANDA_ARM_DOF)
+            ]
             if not any(value is not None for value in per_joint):
                 return
             robot_qpos = per_joint
@@ -1197,7 +1202,10 @@ class LIBEROSimulation(Simulation):
         sim = env.sim
         joint_indexes = np.asarray(getattr(robot, "_ref_joint_pos_indexes", ()), dtype=int)
         joint_names = tuple(getattr(robot, "robot_joints", ()))
-        if joint_indexes.shape != (EXPECTED_PANDA_ARM_DOF,) or len(joint_names) != EXPECTED_PANDA_ARM_DOF:
+        if (
+            joint_indexes.shape != (EXPECTED_PANDA_ARM_DOF,)
+            or len(joint_names) != EXPECTED_PANDA_ARM_DOF
+        ):
             raise ScenarioValidationError(
                 "Unexpected Panda joint layout while applying robot_init_qpos perturbation"
             )
