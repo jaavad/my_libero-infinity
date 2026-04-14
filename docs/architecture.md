@@ -182,13 +182,6 @@ XML mesh automatically.
 libero-infinity/
 │
 ├── pyproject.toml
-├── vendor/
-│   └── python_fcl-0.7.0.10-...-none-any.whl   ARM64 FCL stub
-│
-├── vendor/libero/                       Vendored LIBERO runtime (KE7/Libero fork)
-│   └── libero/libero/
-│       ├── bddl_files/                  Task BDDL files (full LIBERO task suite)
-│       └── envs/                        MuJoCo environments + wrappers
 │
 ├── scenic/
 │   ├── libero_model.scenic              Layer 2: world vocabulary

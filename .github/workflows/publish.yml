@@ -1,0 +1,67 @@
+name: Publish to PyPI
+
+# Publishes libero-infinity to PyPI on every tag matching v*.*.* (e.g. v0.1.0).
+# Uses PyPI Trusted Publishing (OIDC) — no API tokens stored. Requires the
+# `pypi` environment to be configured on this repo with the matching pending
+# publisher entry on PyPI:
+#   Repository: KE7/libero-infinity
+#   Workflow:   publish.yml
+#   Environment: pypi
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Verify metadata with twine
+        run: uv run --with twine twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Trusted Publishing requires id-token: write. The pypi environment
+    # matches the pending publisher entry on PyPI.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/libero-infinity
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

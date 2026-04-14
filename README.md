@@ -68,8 +68,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Fallback: pip install uv
 
 # 2. Clone and install
-git clone --recurse-submodules https://github.com/KE7/libero-infinity.git && cd libero-infinity
-make install        # initializes submodule, creates venv, installs all deps
+git clone https://github.com/KE7/libero-infinity.git && cd libero-infinity
+make install        # creates venv, installs deps, installs pinned LIBERO source
 make setup-assets   # downloads LIBERO assets from HF (only needed once)
 make test           # runs test suite (headless)
 ```
@@ -78,13 +78,12 @@ make test           # runs test suite (headless)
 <summary><strong>Without make — raw equivalent commands</strong></summary>
 
 ```bash
-git clone --recurse-submodules https://github.com/KE7/libero-infinity.git && cd libero-infinity
+git clone https://github.com/KE7/libero-infinity.git && cd libero-infinity
 
 # Equivalent to: make install
-git submodule update --init --recursive
 uv venv --python 3.11
 uv sync --extra dev
-uv run pip install -e vendor/libero
+uv run libero-inf-bootstrap
 
 # Equivalent to: make setup-assets
 PYTHONPATH=src uv run python -c "from libero_infinity.runtime import ensure_runtime; ensure_runtime()"
@@ -99,26 +98,19 @@ MUJOCO_GL=egl PYTHONPATH=src .venv/bin/python -m pytest tests/test_scenic.py tes
 MUJOCO_GL=egl uv run python scripts/verify_build.py
 ```
 
-Or use the bundled convenience script (no make required):
-
-```bash
-./install.sh   # runs git submodule update + uv venv + uv sync + pip install -e vendor/libero
-```
-
 </details>
 
 <details>
 <summary><strong>Manual install (step-by-step)</strong></summary>
 
 ```bash
-git clone --recurse-submodules https://github.com/KE7/libero-infinity.git
+git clone https://github.com/KE7/libero-infinity.git
 cd libero-infinity
 
-# Create venv and install (vendor/libero submodule is initialized automatically)
-git submodule update --init --recursive
+# Create venv and install
 uv venv --python 3.11
 uv sync --extra dev
-uv run pip install -e vendor/libero
+uv run libero-inf-bootstrap
 
 # Download and validate HF assets, configure LIBERO runtime
 PYTHONPATH=src uv run python -c "from libero_infinity.runtime import ensure_runtime; ensure_runtime()"
@@ -501,14 +493,14 @@ If you use the LIBERO benchmark tasks, please also cite:
 | Component | License |
 |-----------|---------|
 | LIBERO-Infinity codebase | [MIT License](LICENSE) |
-| LIBERO (upstream) | [MIT License](vendor/libero/LICENSE) |
+| LIBERO (upstream) | [MIT License](https://github.com/Lifelong-Robot-Learning/LIBERO/blob/master/LICENSE) |
 
 ---
 
 ## Acknowledgments
 
 LIBERO-Infinity is built directly on top of the [LIBERO](https://libero-project.github.io) codebase
-(vendored at `vendor/libero/`, MIT License © 2023 Lifelong Robot Learning) and inherits its full
+(installed from a pinned upstream commit, MIT License © 2023 Lifelong Robot Learning) and inherits its full
 3D asset pack, including all assets originally attributed by LIBERO to their respective sources.
 We thank Bo Liu, Yifeng Zhu, and the LIBERO team (Yang et al., 2023) for building and open-sourcing
 the benchmark that makes this work possible.
