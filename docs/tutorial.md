@@ -35,8 +35,8 @@ By the end of this tutorial you will:
   the plate"*)
 - **Run a 10-episode evaluation** with `--perturbation position` from the CLI
   and save a JSON results file
-- **Switch to combined perturbation** (position + object identity) and see how
-  the scene distribution changes
+- **Switch to the combined preset** and see how robot and environment variation
+  compound with object/position changes
 - **Write a short Python script** that uses `LIBEROScenicEnv` to drive a
   custom policy in a training loop
 - **Understand what the numbers mean** — success rate, Wilson confidence
@@ -232,8 +232,12 @@ Key fields:
 
 ## 4. Adding more perturbation axes
 
-LIBERO-Infinity has **six composable perturbation axes**. You can activate any
-subset with a comma-separated list, or use a named preset.
+LIBERO-Infinity has **nine composable perturbation axes**. `position`,
+`object`, `robot`, `camera`, `lighting`, `texture`, and `distractor` are
+sampled through Scenic-authored or Scenic-emitted parameters, while
+`background` and `articulation` are applied by the planner and simulator
+layers. You can activate any subset with a comma-separated list, or use a named
+preset.
 
 ### Quick reference
 
@@ -241,17 +245,20 @@ subset with a comma-separated list, or use a named preset.
 |------|--------------------------|-----------------|
 | `position` | Object (x, y) placement — uniform over workspace | *Where* |
 | `object` | Object mesh + texture — swapped from a pool of 34 asset classes | *What* |
+| `robot` | Panda arm `init_qpos` — sampled in joint space around the canonical reset | *Arm start* |
 | `camera` | Agentview camera position (±10 cm) and tilt (±15°) | *View* |
 | `lighting` | Diffuse/specular intensity (0.4×–2.0×) and ambient level | *Light* |
 | `texture` | Table surface material | *Surface* |
 | `distractor` | 1–5 random non-task objects added to the scene | *Clutter* |
+| `background` | Wall and floor textures | *Room* |
+| `articulation` | Initial fixture state (doors, drawers, stoves) | *Fixture* |
 
 Named presets:
 
 | Preset | Equivalent to |
 |--------|--------------|
-| `combined` | `position,object` |
-| `full` | All six axes |
+| `combined` | `position,object,robot,camera,lighting,distractor,background` |
+| `full` | All nine axes |
 
 ### Switching to `position,camera`
 
@@ -284,10 +291,12 @@ And in the JSON:
 }
 ```
 
-### Switching to `combined` (position + object)
+### Switching to `combined`
 
-The `combined` preset simultaneously randomises object positions *and* swaps
-the movable object for a different mesh from the asset registry:
+The `combined` preset layers object and position changes with robot-start and
+environment perturbations. In practice that means the bowl can move, the asset
+variant can change, the Panda arm can begin from a different joint-space reset,
+and camera/lighting/background/clutter can all vary in the same episode:
 
 ```bash
 MUJOCO_GL=egl libero-eval \
@@ -655,7 +664,7 @@ print(f"{results.success_rate:.1%} ± {results.ci_95:.1%}")
 | Standard LIBERO (no perturbation) | Fixed initial states from the original benchmark dataset |
 | `--perturbation position` | Continuous uniform position randomisation |
 | `--perturbation combined` | Position + object identity (recommended default) |
-| `--perturbation full` | All six axes — the hardest test |
+| `--perturbation full` | All eight axes — the hardest test |
 
 A significant gap between "no perturbation" and "combined" means the policy has
 memorised scene layout rather than truly generalising. This is the key insight
@@ -684,7 +693,7 @@ You now have the fundamentals. Here is where to go next:
 
 | Document | What you'll learn |
 |----------|-----------------|
-| [Scenic Perturbations](scenic_perturbations.md) | Detailed parameters for all six perturbation axes, constraint tuning, and adding new asset variants |
+| [Scenic Perturbations](scenic_perturbations.md) | Detailed parameters for all 8 perturbation axes, constraint tuning, and adding new asset variants |
 | [Gym Wrapper](gym-wrapper.md) | Parallel rollouts with `make_vec_env`, RL training integration, curriculum learning with task reversal |
 | [Evaluation Pipeline](evaluation_pipeline.md) | Full CLI flag reference, adversarial search, live rendering, and technical details (control frequency, coordinate system) |
 | [Observations & Actions](observations-actions.md) | Complete obs dict schema, action dimensions, proprioception keys, and concrete policy examples |

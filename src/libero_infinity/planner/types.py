@@ -81,6 +81,17 @@ class BackgroundPlan:
 
 
 @dataclass
+class RobotInitPlan:
+    """Robot initialization perturbation plan in joint space."""
+
+    canonical_qpos: tuple[float, ...]
+    radius_lo: float
+    radius_hi: float
+    joint_names: tuple[str, ...] = ()
+    robot_model: str = "Panda"
+
+
+@dataclass
 class PositionPlan:
     """Position plan for a single object — independent of other axes."""
 
@@ -112,6 +123,8 @@ class PerturbationPlan:
     object_substitutions: dict[str, list[str]] = field(
         default_factory=dict
     )  # object_name -> variant list
+    # Robot axis
+    robot_plan: RobotInitPlan | None = None
     # Articulation axis (filled by planner-axes)
     articulation_plans: dict[str, Any] = field(
         default_factory=dict

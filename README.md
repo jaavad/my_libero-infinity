@@ -20,14 +20,14 @@
 <p align="center">
   <img src="assets/perturbation_gallery.png" width="90%" alt="LIBERO-Infinity Perturbation Axes">
 </p>
-<p align="center"><em>Same task, eight perturbation axes — each showing the worst-case sample from its Scenic distribution. Every <code>reset()</code> draws a new scene.</em></p>
+<p align="center"><em>Same task, selected perturbation axes and presets — including robot joint-reset perturbation. Every <code>reset()</code> draws a new scene.</em></p>
 
 ---
 
 ## Highlights
 
 - **Open-Ended Evaluation** -- Sample unlimited i.i.d. test scenes from constraint-checked probability distributions; success rate converges to a true population statistic
-- **8 Composable Perturbation Axes** -- Position, object identity, camera, lighting, texture, distractor objects, background, articulation -- mix any subset
+- **9 Composable Perturbation Axes** -- Position, object identity, robot joint reset, camera, lighting, texture, distractor objects, background, articulation -- mix any subset
 - **Unlimited Tasks, Zero Hand-Writing** -- Point at any LIBERO BDDL task file; Scenic programs are synthesized automatically
 - **Adversarial Search** -- Cross-entropy Bayesian optimization finds worst-case scenes via [VerifAI](https://github.com/BerkeleyLearnVerify/VerifAI)
 - **Task Reversal** -- Flip any forward task backward for novel evaluation from goal-state initial configs
@@ -279,12 +279,13 @@ See [docs/installation.md](docs/installation.md) for detailed setup instructions
 
 ## Perturbation Axes
 
-LIBERO-Infinity provides **eight composable perturbation axes**, each defined as a [Scenic 3](https://github.com/BerkeleyLearnVerify/Scenic) distribution with constraint checking via rejection sampling.
+LIBERO-Infinity provides **nine composable perturbation axes**, each defined as a [Scenic 3](https://github.com/BerkeleyLearnVerify/Scenic) distribution with constraint checking via rejection sampling.
 
 | Axis | What Varies | Distribution | Constraints |
 |------|------------|-------------|-------------|
 | **Position** | Object (x, y) placement | Uniform over reachable workspace | Pairwise clearance > 0.10 m; soft OOD bias |
 | **Object** | Visual identity (mesh + texture) | Uniform over 34 asset variant pools | BDDL rewriting for asset substitution |
+| **Robot** | Panda arm start configuration | Joint-space radius 0.1-0.5 around canonical `init_qpos` | Applied to the 7 arm joints; base pose unchanged |
 | **Camera** | Viewpoint position and tilt | Position offsets +/- 0.10 m; tilt +/- 15 deg | Applied to agentview camera quaternion |
 | **Lighting** | Scene illumination | Intensity [0.4, 2.0]; ambient [0.05, 0.6] | Applied to all MuJoCo lights |
 | **Texture** | Table surface material | Named or random texture swap | MuJoCo material ID replacement |
@@ -298,7 +299,7 @@ All axes are **arbitrarily composable** -- specify any combination:
 --perturbation position                    # single axis
 --perturbation position,camera             # two axes
 --perturbation object,lighting,distractor  # three axes
---perturbation combined                    # preset: position + object
+--perturbation combined                    # preset: position + object + robot + camera + lighting + distractor + background
 --perturbation full                        # all axes
 ```
 

@@ -23,6 +23,7 @@ from libero_infinity.planner.axes import (
     plan_camera,
     plan_distractor,
     plan_lighting,
+    plan_robot,
     plan_texture,
 )
 from libero_infinity.planner.composition import (
@@ -38,6 +39,7 @@ from libero_infinity.planner.types import (
     LightingPlan,
     PerturbationPlan,
     PositionPlan,
+    RobotInitPlan,
     TexturePlan,
 )
 from libero_infinity.renderer.scenic_renderer import render_scenic
@@ -191,6 +193,15 @@ def test_parse_axes_empty_string() -> None:
     assert result == frozenset()
 
 
+def test_parse_axes_robot_single() -> None:
+    assert parse_axes("robot") == frozenset(["robot"])
+
+
+def test_parse_axes_robot_in_combined_and_full() -> None:
+    assert "robot" in AXIS_PRESETS["combined"]
+    assert "robot" in AXIS_PRESETS["full"]
+
+
 # ---------------------------------------------------------------------------
 # plan_position: contained objects excluded
 # ---------------------------------------------------------------------------
@@ -332,12 +343,40 @@ def test_distractor_budget_scales_with_free_area(
     assert small_budget <= large_budget
 
 
+def test_distractor_budget_narrows_for_position_object_composition(
+    sample_graph: SemanticSceneGraph,
+) -> None:
+    """Position+object+distractor composition should narrow distractor count."""
+    diag = PlanDiagnostics()
+    budget, _classes = plan_distractor(
+        sample_graph,
+        frozenset(["position", "object", "distractor"]),
+        diag,
+        free_area=0.5,
+    )
+    assert budget <= 2
+
+
 def test_distractor_classes_non_empty(sample_graph: SemanticSceneGraph) -> None:
     """Distractor classes should be non-empty when budget > 0."""
     diag = PlanDiagnostics()
     budget, classes = plan_distractor(sample_graph, frozenset(["distractor"]), diag, free_area=0.09)
     if budget > 0:
         assert len(classes) > 0
+
+
+def test_distractor_classes_draw_from_curated_pool(sample_graph: SemanticSceneGraph) -> None:
+    """Generated distractor classes should come from the curated distractor pool."""
+    from libero_infinity.asset_registry import DEFAULT_DISTRACTOR_POOL
+
+    diag = PlanDiagnostics()
+    _budget, classes = plan_distractor(
+        sample_graph,
+        frozenset(["distractor"]),
+        diag,
+        free_area=0.09,
+    )
+    assert set(classes).issubset(set(DEFAULT_DISTRACTOR_POOL))
 
 
 # ---------------------------------------------------------------------------
@@ -725,6 +764,29 @@ def test_plan_perturbations_background_plan_populated(
     assert plan.background_plan is not None
     assert isinstance(plan.background_plan, BackgroundPlan)
     assert len(plan.background_plan.texture_candidates) > 0
+
+
+def test_plan_robot_returns_robot_plan(sample_graph: SemanticSceneGraph) -> None:
+    diag = PlanDiagnostics()
+    robot_plan = plan_robot(sample_graph, frozenset(["robot"]), diag)
+    assert robot_plan is not None
+    assert isinstance(robot_plan, RobotInitPlan)
+    assert len(robot_plan.canonical_qpos) == 7
+    assert robot_plan.radius_lo == pytest.approx(0.1)
+    assert robot_plan.radius_hi == pytest.approx(0.5)
+
+
+def test_plan_perturbations_populates_robot_plan(sample_graph: SemanticSceneGraph) -> None:
+    plan = plan_perturbations(sample_graph, frozenset(["robot"]))
+    assert plan.robot_plan is not None
+    assert "robot" in plan.active_axes
+
+
+def test_render_robot_emits_robot_params(sample_graph: SemanticSceneGraph) -> None:
+    plan = plan_perturbations(sample_graph, frozenset(["robot"]))
+    scenic_src = render_scenic(plan, sample_graph)
+    assert "robot_init_qpos" in scenic_src
+    assert "robot_init_radius" in scenic_src
 
 
 def test_render_background_emits_params(sample_graph: SemanticSceneGraph) -> None:
