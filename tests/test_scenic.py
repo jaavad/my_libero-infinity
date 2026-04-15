@@ -1041,8 +1041,21 @@ class TestLiberoCorpusAudit:
             os.unlink(path)
 
     def test_full_mode_compiles(self, bowl_config):
+        import random
+
+        import numpy as np
+
         import scenic as sc
         from libero_infinity.compiler import generate_scenic_file
+
+        # Pin the RNGs so Scenic's rejection sampler is deterministic. Scenic
+        # has no public seed API; its `-s <seed>` CLI option literally calls
+        # `random.seed(n); numpy.random.seed(n)` (see scenic/__main__.py, the
+        # `if args.seed is not None:` block). Without this, the tight radial
+        # footprint-clearance constraints below make pass/fail probabilistic
+        # even at maxIterations=10000 and the test flakes intermittently.
+        random.seed(0)
+        np.random.seed(0)
 
         path = generate_scenic_file(bowl_config, perturbation="full")
         try:
