@@ -63,14 +63,20 @@ def _pip_install(source_dir: pathlib.Path) -> None:
     # from PyPI (no uv) can still bootstrap.
     if shutil.which("uv") is not None:
         cmd = [
-            "uv", "pip", "install",
-            "--python", sys.executable,
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
             "--no-deps",
             str(source_dir),
         ]
     else:
         cmd = [
-            sys.executable, "-m", "pip", "install",
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
             "--no-deps",
             str(source_dir),
         ]
@@ -89,9 +95,7 @@ def main() -> None:
         prog="libero-inf-bootstrap",
         description="Install pinned upstream LIBERO source into the active Python environment.",
     )
-    parser.add_argument(
-        "--force", action="store_true", help="Re-download the pinned source tree"
-    )
+    parser.add_argument("--force", action="store_true", help="Re-download the pinned source tree")
     args = parser.parse_args()
     install(force=args.force)
     print(f"Installed LIBERO from {LIBERO_REPO}@{LIBERO_COMMIT[:8]}")
