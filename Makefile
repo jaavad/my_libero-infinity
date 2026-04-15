@@ -1,4 +1,4 @@
-.PHONY: install install-full test test-fast verify clean check-uv view
+.PHONY: install install-full setup-assets test test-fast verify clean clean-generated check-uv view
 
 PYTHON ?= 3.11
 MUJOCO_GL ?= egl
@@ -7,12 +7,18 @@ MUJOCO_GL ?= egl
 check-uv:
 	@command -v uv >/dev/null 2>&1 || 		{ echo "ERROR: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"; exit 1; }
 
-# Create venv + install all deps (submodule init + Scenic + dev + vendor/libero + LIBERO config)
+# Create venv + install all deps (Scenic + dev + pinned LIBERO source)
 install: check-uv
-	PYTHON=$(PYTHON) ./install.sh
+	uv venv --python $(PYTHON)
+	uv sync --extra dev
+	uv run libero-inf-bootstrap
 
 # Full setup (alias for install)
 install-full: install
+
+# Download and validate HF assets, refresh ~/.libero/config.yaml and assets link
+setup-assets: check-uv
+	PYTHONPATH=src uv run python -c "from libero_infinity.runtime import ensure_runtime; ensure_runtime()"
 
 # Run the full test suite (headless).  Requires GPU/EGL for simulation tests.
 test:
@@ -53,3 +59,7 @@ view: check-uv
 # truly want to regenerate it.
 clean:
 	rm -rf .venv
+
+# Remove generated Scenic programs
+clean-generated:
+	rm -rf scenic/generated

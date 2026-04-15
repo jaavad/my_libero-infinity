@@ -27,8 +27,8 @@ dependencies = [
     "scipy>=1.9",
     # Required by LIBERO at import time (libero/__init__.py)
     "pyyaml>=6.0",
-    # python-fcl stub — Scenic imports fcl; ARM64 Linux has no wheel, so we vendor a stub
-    "python-fcl>=0.7",
+    # Scenic imports fcl; 0.7.0.11+ ships manylinux aarch64 wheels (cp39–cp314)
+    "python-fcl>=0.7.0.11",
     # MuJoCo physics (2.3.7 ships an ARM64 Linux binary in its sdist)
     "mujoco>=2.3,<3",
     # LIBERO's simulation backend (must be exactly 1.4.0 for LIBERO API compat)
@@ -67,21 +67,26 @@ dev = [
     "rich",
 ]
 
+[tool.hatch.build.targets.sdist]
+# Vendored LIBERO is a dev convenience; libero-inf-bootstrap downloads upstream
+# at install time. Audit logs, scenic dev programs, and tests are not needed by
+# PyPI consumers.
+exclude = [
+    "vendor",
+    "audit",
+    "scenic/generated",
+    "tests",
+    ".github",
+    ".python-version",
+    "uv.lock",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/libero_infinity"]
 
-[tool.hatch.build.targets.wheel.shared-data]
-# bddl_files and init_files are package data, included in the wheel
-"src/libero_infinity/data/libero_runtime" = "libero_infinity/data/libero_runtime"
-
-[tool.uv.sources]
-# python-fcl 0.7.x has no ARM64 Linux wheel and no sdist on PyPI.
-# The vendor/ stub implements the full FCL symbol surface so Scenic can import;
-# it stubs all geometry operations (correct — we use explicit distance constraints).
-python-fcl = { path = "vendor/python_fcl-0.7.0.10-py2.py3-none-any.whl" }
-
 [project.scripts]
 libero-eval = "libero_infinity.eval:main"
+libero-inf-bootstrap = "libero_infinity.bootstrap:main"
 
 [tool.ruff]
 target-version = "py311"
