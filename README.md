@@ -18,7 +18,7 @@
 ---
 
 <p align="center">
-  <img src="assets/perturbation_gallery.png" width="90%" alt="LIBERO-Infinity Perturbation Axes">
+  <img src="https://raw.githubusercontent.com/KE7/libero-infinity/main/assets/perturbation_gallery.png" width="90%" alt="LIBERO-Infinity Perturbation Axes">
 </p>
 <p align="center"><em>Same task, selected perturbation axes and presets — including robot joint-reset perturbation. Every <code>reset()</code> draws a new scene.</em></p>
 
@@ -389,7 +389,7 @@ See [docs/evaluation_pipeline.md](docs/evaluation_pipeline.md) for the complete 
 ## Architecture
 
 <p align="center">
-  <img src="assets/architecture_pipeline.png" width="85%" alt="LIBERO-Infinity Architecture">
+  <img src="https://raw.githubusercontent.com/KE7/libero-infinity/main/assets/architecture_pipeline.png" width="85%" alt="LIBERO-Infinity Architecture">
 </p>
 
 ### Layered Scenic Design
