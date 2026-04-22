@@ -1,0 +1,250 @@
+{
+  "robot0_joint_pos": {
+    "shape": [
+      7
+    ],
+    "dtype": "float64",
+    "min": -2.4707464238107613,
+    "max": 2.2351167492703046
+  },
+  "robot0_joint_pos_cos": {
+    "shape": [
+      7
+    ],
+    "dtype": "float64",
+    "min": -0.7832958884597487,
+    "max": 1.0
+  },
+  "robot0_joint_pos_sin": {
+    "shape": [
+      7
+    ],
+    "dtype": "float64",
+    "min": -0.6216490578469921,
+    "max": 0.7873359429049421
+  },
+  "robot0_joint_vel": {
+    "shape": [
+      7
+    ],
+    "dtype": "float64",
+    "min": 0.0,
+    "max": 0.0
+  },
+  "robot0_eef_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.21834332428505876,
+    "max": 1.1572135787036901
+  },
+  "robot0_eef_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float64",
+    "min": -0.043839855785546764,
+    "max": 0.9990385409883582
+  },
+  "robot0_gripper_qpos": {
+    "shape": [
+      2
+    ],
+    "dtype": "float64",
+    "min": -0.008388394378881805,
+    "max": 0.008388610003599712
+  },
+  "robot0_gripper_qvel": {
+    "shape": [
+      2
+    ],
+    "dtype": "float64",
+    "min": 0.0,
+    "max": 0.0
+  },
+  "agentview_image": {
+    "shape": [
+      128,
+      128,
+      3
+    ],
+    "dtype": "uint8",
+    "min": 0.0,
+    "max": 203.0
+  },
+  "agentview_depth": {
+    "shape": [
+      128,
+      128,
+      1
+    ],
+    "dtype": "float32",
+    "min": 0.9848288297653198,
+    "max": 0.9965593814849854
+  },
+  "robot0_eye_in_hand_image": {
+    "shape": [
+      128,
+      128,
+      3
+    ],
+    "dtype": "uint8",
+    "min": 0.0,
+    "max": 229.0
+  },
+  "robot0_eye_in_hand_depth": {
+    "shape": [
+      128,
+      128,
+      1
+    ],
+    "dtype": "float32",
+    "min": 0.6766192317008972,
+    "max": 0.9711436629295349
+  },
+  "akita_black_bowl_1_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": 0.013880369058394723,
+    "max": 0.9209383730030585
+  },
+  "akita_black_bowl_1_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float64",
+    "min": -3.831025610116226e-05,
+    "max": 0.7071067816986836
+  },
+  "akita_black_bowl_1_to_robot0_eef_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.10569429203988122,
+    "max": 0.2520797750818297
+  },
+  "akita_black_bowl_1_to_robot0_eef_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float32",
+    "min": -0.7062512636184692,
+    "max": 0.7066019773483276
+  },
+  "cream_cheese_1_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.12266726713580586,
+    "max": 0.9067228912281573
+  },
+  "cream_cheese_1_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float64",
+    "min": 6.5738724366279985e-12,
+    "max": 0.9999999999872878
+  },
+  "cream_cheese_1_to_robot0_eef_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.2512163307192271,
+    "max": 0.24114702511698427
+  },
+  "cream_cheese_1_to_robot0_eef_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float32",
+    "min": -0.9990385174751282,
+    "max": 0.04383927956223488
+  },
+  "wine_bottle_1_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.2107384369197854,
+    "max": 0.9200573632261118
+  },
+  "wine_bottle_1_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float64",
+    "min": -2.234177797890778e-06,
+    "max": 0.9999999999974944
+  },
+  "wine_bottle_1_to_robot0_eef_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.05288195378729523,
+    "max": 0.23557845499166108
+  },
+  "wine_bottle_1_to_robot0_eef_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float32",
+    "min": -0.9990384578704834,
+    "max": 0.04384209215641022
+  },
+  "plate_1_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": 0.12029759247445448,
+    "max": 0.920632947189541
+  },
+  "plate_1_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float64",
+    "min": -5.558041598654593e-05,
+    "max": 0.7071068008034136
+  },
+  "plate_1_to_robot0_eef_pos": {
+    "shape": [
+      3
+    ],
+    "dtype": "float64",
+    "min": -0.12008511037526,
+    "max": 0.43135867047726706
+  },
+  "plate_1_to_robot0_eef_quat": {
+    "shape": [
+      4
+    ],
+    "dtype": "float32",
+    "min": -0.7062505483627319,
+    "max": 0.7065988183021545
+  },
+  "robot0_proprio-state": {
+    "shape": [
+      39
+    ],
+    "dtype": "float64",
+    "min": -2.4707464238107613,
+    "max": 2.2351167492703046
+  },
+  "object-state": {
+    "shape": [
+      56
+    ],
+    "dtype": "float64",
+    "min": -0.9990385174751282,
+    "max": 0.9999999999974944
+  }
+}
