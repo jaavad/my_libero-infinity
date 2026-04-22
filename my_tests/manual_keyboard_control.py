@@ -28,10 +28,24 @@ env = LIBEROScenicEnv(
     max_steps=MAX_STEPS,
 )
 
+
+model = sim.model
+cam_id = model.camera_name2id("agentview")
+
+print("before:", model.cam_pos[cam_id])
+
+model.cam_pos[cam_id][2] += 0.8
+model.cam_pos[cam_id][1] -= 0.5
+model.cam_fovy[cam_id] = 80
+
+print("after :", model.cam_pos[cam_id])
+
 print("=== Environment created ===")
 print("action_space:", env.action_space)
 print("Action meaning assumed as: [dx, dy, dz, dax, day, daz, gripper]")
 print("These are delta actions, not absolute poses.")
+
+move_agentview_camera_up(env, dz=0.3, dy_back=-3, fovy_add=5.0)
 
 obs = env.reset()
 
@@ -270,3 +284,76 @@ fig.canvas.mpl_disconnect(cid)
 env.close()
 print("\nClosed environment.")
 print("Outputs saved in:", OUTDIR.resolve())
+
+
+
+
+
+
+
+
+def move_agentview_camera_up(env, dz=0.4, dy_back=0.25, fovy_add=15.0):
+    """
+    Try to move the agentview camera upward and a bit backward so more of the
+    robot upper body is visible.
+    """
+    sim = None
+
+    # Try a few common wrapper structures
+    candidates = [
+        env,
+        getattr(env, "env", None),
+        getattr(env, "_env", None),
+    ]
+
+    for obj in candidates:
+        if obj is None:
+            continue
+        if hasattr(obj, "sim"):
+            sim = obj.sim
+            break
+        if hasattr(obj, "_sim"):
+            sim = obj._sim
+            break
+
+    if sim is None:
+        raise RuntimeError("Could not find underlying MuJoCo sim object.")
+
+    model = sim.model
+
+    # Print all camera names for debugging
+    cam_names = []
+    for i in range(model.ncam):
+        try:
+            cam_names.append(model.camera_id2name(i))
+        except Exception:
+            cam_names.append(None)
+    print("Available cameras:", cam_names)
+
+    # Try common external camera names
+    target_name = None
+    for name in ["agentview", "frontview", "sideview", "birdview"]:
+        if name in cam_names:
+            target_name = name
+            break
+
+    if target_name is None:
+        raise RuntimeError(f"Could not find target camera in {cam_names}")
+
+    cam_id = model.camera_name2id(target_name)
+
+    old_pos = model.cam_pos[cam_id].copy()
+    old_fovy = float(model.cam_fovy[cam_id])
+
+    # Move camera upward and slightly backward
+    model.cam_pos[cam_id][2] += dz
+    model.cam_pos[cam_id][1] -= dy_back
+
+    # Widen field of view a bit
+    model.cam_fovy[cam_id] = min(old_fovy + fovy_add, 100.0)
+
+    print(f"Modified camera: {target_name}")
+    print("old_pos :", old_pos)
+    print("new_pos :", model.cam_pos[cam_id].copy())
+    print("old_fovy:", old_fovy)
+    print("new_fovy:", float(model.cam_fovy[cam_id]))
