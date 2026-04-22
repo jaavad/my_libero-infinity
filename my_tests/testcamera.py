@@ -47,88 +47,36 @@ def pick_best_camera_key(obs):
 
 
 def try_override_sim_camera(env):
-    """
-    Best-effort camera override.
-    This is intentionally defensive because different LIBERO / robosuite builds
-    expose the MuJoCo simulator a little differently.
-    """
-    possible_sim_attrs = ["env", "_env", "sim", "_sim"]
-    sim = None
-    base = env
+    sim = env._sim.libero_env.sim
+    model = sim.model
 
-    # Try nested env.sim or direct sim
-    for attr in possible_sim_attrs:
-        if hasattr(base, attr):
-            obj = getattr(base, attr)
-            if hasattr(obj, "model"):   # probably sim
-                sim = obj
-                break
-            if hasattr(obj, "sim"):
-                sim = obj.sim
-                break
-
-    if sim is None:
-        return False, "Could not find MuJoCo sim object from env."
-
-    model = getattr(sim, "model", None)
-    if model is None:
-        return False, "MuJoCo sim has no model."
-
-    # Try to inspect camera names
     cam_names = []
-    try:
-        ncam = model.ncam
-        for i in range(ncam):
-            name = model.camera_id2name(i)
-            cam_names.append(name)
-    except Exception:
-        pass
+    for i in range(model.ncam):
+        try:
+            cam_names.append(model.camera_id2name(i))
+        except Exception:
+            cam_names.append(None)
 
-    target_names = ["agentview", "frontview", "sideview", "birdview"]
-    target_cam_id = None
-    target_cam_name = None
+    print("Available cameras:", cam_names)
 
-    for cname in target_names:
-        if cname in cam_names:
-            target_cam_name = cname
-            break
+    target_cam_name = "agentview"
+    if target_cam_name not in cam_names:
+        return False, f"'agentview' not found in {cam_names}"
 
-    if target_cam_name is None and len(cam_names) > 0:
-        target_cam_name = cam_names[0]
+    cam_id = model.camera_name2id(target_cam_name)
 
-    if target_cam_name is None:
-        return False, "No named MuJoCo cameras found."
+    old_pos = model.cam_pos[cam_id].copy()
+    old_fovy = float(model.cam_fovy[cam_id])
 
-    try:
-        target_cam_id = model.camera_name2id(target_cam_name)
-    except Exception as e:
-        return False, f"Found camera name but could not get ID: {e}"
+    model.cam_pos[cam_id][2] += 0.8
+    model.cam_pos[cam_id][1] -= 0.5
+    model.cam_fovy[cam_id] = min(old_fovy + 20.0, 100.0)
 
-    # Attempt to widen / pull back camera
-    # MuJoCo camera arrays typically:
-    # cam_pos[ncam, 3], cam_quat[ncam, 4], cam_fovy[ncam]
-    try:
-        old_pos = model.cam_pos[target_cam_id].copy()
-        old_fovy = float(model.cam_fovy[target_cam_id])
-
-        # pull camera backward in its local rough world z/y sense
-        # exact direction depends on existing pose, but this often helps
-        new_pos = old_pos.copy()
-        new_pos[1] -= 0.6
-        new_pos[2] += 0.3
-        model.cam_pos[target_cam_id] = new_pos
-
-        # widen FOV
-        model.cam_fovy[target_cam_id] = min(90.0, old_fovy + 20.0)
-
-        return True, (
-            f"Overrode camera '{target_cam_name}' "
-            f"pos {old_pos} -> {new_pos}, "
-            f"fovy {old_fovy:.1f} -> {float(model.cam_fovy[target_cam_id]):.1f}"
-        )
-    except Exception as e:
-        return False, f"Camera override failed: {e}"
-
+    return True, (
+        f"Overrode camera '{target_cam_name}' "
+        f"pos {old_pos} -> {model.cam_pos[cam_id].copy()}, "
+        f"fovy {old_fovy:.1f} -> {float(model.cam_fovy[cam_id]):.1f}"
+    )
 
 env = LIBEROScenicEnv(
     bddl_path=str(BDDL_PATH),
@@ -137,15 +85,23 @@ env = LIBEROScenicEnv(
     max_steps=MAX_STEPS,
 )
 
+
+print("ENV TYPE:", type(env))
+print("ENV DIR:", dir(env))
+
 print("=== Environment created ===")
 print("action_space:", env.action_space)
 print("Assumed action meaning: [dx, dy, dz, dax, day, daz, gripper]")
 print("Treating them as delta actions.")
 
+#ok, msg = try_override_sim_camera(env)
+#print("camera override:", ok, "|", msg)
+
+obs = env.reset()
+
 ok, msg = try_override_sim_camera(env)
 print("camera override:", ok, "|", msg)
 
-obs = env.reset()
 print("\n=== After reset ===")
 print("observation keys:", list(obs.keys()))
 
@@ -293,3 +249,74 @@ plt.show()
 fig.canvas.mpl_disconnect(cid)
 env.close()
 print("Closed.")
+
+
+
+
+
+
+def move_agentview_camera_up(env, dz=0.4, dy_back=0.25, fovy_add=15.0):
+    """
+    Try to move the agentview camera upward and a bit backward so more of the
+    robot upper body is visible.
+    """
+    sim = None
+
+    # Try a few common wrapper structures
+    candidates = [
+        env,
+        getattr(env, "env", None),
+        getattr(env, "_env", None),
+    ]
+
+    for obj in candidates:
+        if obj is None:
+            continue
+        if hasattr(obj, "sim"):
+            sim = obj.sim
+            break
+        if hasattr(obj, "_sim"):
+            sim = obj._sim
+            break
+
+    if sim is None:
+        raise RuntimeError("Could not find underlying MuJoCo sim object.")
+
+    model = sim.model
+
+    # Print all camera names for debugging
+    cam_names = []
+    for i in range(model.ncam):
+        try:
+            cam_names.append(model.camera_id2name(i))
+        except Exception:
+            cam_names.append(None)
+    print("Available cameras:", cam_names)
+
+    # Try common external camera names
+    target_name = None
+    for name in ["agentview", "frontview", "sideview", "birdview"]:
+        if name in cam_names:
+            target_name = name
+            break
+
+    if target_name is None:
+        raise RuntimeError(f"Could not find target camera in {cam_names}")
+
+    cam_id = model.camera_name2id(target_name)
+
+    old_pos = model.cam_pos[cam_id].copy()
+    old_fovy = float(model.cam_fovy[cam_id])
+
+    # Move camera upward and slightly backward
+    model.cam_pos[cam_id][2] += dz
+    model.cam_pos[cam_id][1] -= dy_back
+
+    # Widen field of view a bit
+    model.cam_fovy[cam_id] = min(old_fovy + fovy_add, 100.0)
+
+    print(f"Modified camera: {target_name}")
+    print("old_pos :", old_pos)
+    print("new_pos :", model.cam_pos[cam_id].copy())
+    print("old_fovy:", old_fovy)
+    print("new_fovy:", float(model.cam_fovy[cam_id]))
