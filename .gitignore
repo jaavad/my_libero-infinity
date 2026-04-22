@@ -98,7 +98,4 @@ scripts/audit_position_perturbations.py
 # Vendor assets (large binary files, fetched at install time)
 vendor/libero/libero/libero/assets/
 
-# folders
-my_tests/debug_manual_env_live/
-my_tests/debug_manual_env/
-my_tests/debug_keyboard_control/
+
