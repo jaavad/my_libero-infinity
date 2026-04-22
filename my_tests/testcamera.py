@@ -94,16 +94,13 @@ print("action_space:", env.action_space)
 print("Assumed action meaning: [dx, dy, dz, dax, day, daz, gripper]")
 print("Treating them as delta actions.")
 
-#ok, msg = try_override_sim_camera(env)
-#print("camera override:", ok, "|", msg)
+
 
 obs = env.reset()
 
 ok, msg = try_override_sim_camera(env)
 print("camera override:", ok, "|", msg)
 
-# get a fresh frame after camera change
-obs = env._sim.libero_env._get_observations()
 
 print("\n=== After reset ===")
 print("observation keys:", list(obs.keys()))
@@ -153,7 +150,6 @@ def print_help():
     print("  h -> print help")
     print("  q -> quit")
 
-
 def on_key(event):
     global obs, current_action, step_count, running
 
@@ -170,80 +166,72 @@ def on_key(event):
         print_help()
         return
 
-    elif key == "z":
-        current_action[:] = 0.0
-
-    elif key == "w":
-        current_action[0] += DELTA_STEP
-    elif key == "s":
-        current_action[0] -= DELTA_STEP
-
-    elif key == "a":
-        current_action[1] += DELTA_STEP
-    elif key == "d":
-        current_action[1] -= DELTA_STEP
-
-    elif key == "r":
-        current_action[2] += DELTA_STEP
-    elif key == "f":
-        current_action[2] -= DELTA_STEP
-
-    elif key == "i":
-        current_action[3] += ROT_STEP
-    elif key == "k":
-        current_action[3] -= ROT_STEP
-
-    elif key == "j":
-        current_action[4] += ROT_STEP
-    elif key == "l":
-        current_action[4] -= ROT_STEP
-
-    elif key == "u":
-        current_action[5] += ROT_STEP
-    elif key == "o":
-        current_action[5] -= ROT_STEP
-
-    elif key == "n":
-        current_action[6] += GRIPPER_STEP
-    elif key == "m":
-        current_action[6] -= GRIPPER_STEP
-
     elif key == "p":
         save_frame(obs[camera_key][::-1], f"{camera_key}_step_{step_count}")
         print(f"Saved frame at step {step_count}")
+        return
 
     elif key == "x":
         obs = env.reset()
+        ok, msg = try_override_sim_camera(env)
+        print("camera override:", ok, "|", msg)
         step_count = 0
-        print("Environment reset.")
         refresh_display(obs)
         return
 
-    elif key == " ":
-        current_action[:] = clamp_action(current_action)
-        obs, reward, done, info = env.step(current_action)
-        step_count += 1
+    # one-shot action
+    action = np.zeros(7, dtype=np.float32)
 
-        print(f"\n=== Step {step_count} ===")
-        print("action:", current_action)
-        print("reward:", reward)
-        print("done:", done)
-        print("info:", info)
-
-        refresh_display(obs, reward=reward, done=done, info=info)
-
-        if done:
-            print("Episode ended. Resetting.")
-            obs = env.reset()
-            step_count = 0
-            refresh_display(obs)
+    if key == "w":
+        action[0] = DELTA_STEP
+    elif key == "s":
+        action[0] = -DELTA_STEP
+    elif key == "a":
+        action[1] = DELTA_STEP
+    elif key == "d":
+        action[1] = -DELTA_STEP
+    elif key == "r":
+        action[2] = DELTA_STEP
+    elif key == "f":
+        action[2] = -DELTA_STEP
+    elif key == "i":
+        action[3] = ROT_STEP
+    elif key == "k":
+        action[3] = -ROT_STEP
+    elif key == "j":
+        action[4] = ROT_STEP
+    elif key == "l":
+        action[4] = -ROT_STEP
+    elif key == "u":
+        action[5] = ROT_STEP
+    elif key == "o":
+        action[5] = -ROT_STEP
+    elif key == "n":
+        action[6] = GRIPPER_STEP
+    elif key == "m":
+        action[6] = -GRIPPER_STEP
+    else:
         return
 
-    current_action[:] = clamp_action(current_action)
-    print("Current action:", current_action)
-    refresh_display(obs)
+    action = clamp_action(action)
+    obs, reward, done, info = env.step(action)
+    step_count += 1
 
+    print(f"\n=== Step {step_count} ===")
+    print("action:", action)
+    print("reward:", reward)
+    print("done:", done)
+    print("info:", info)
 
+    refresh_display(obs, reward=reward, done=done, info=info)
+
+    if done:
+        print("Episode ended. Resetting.")
+        obs = env.reset()
+        ok, msg = try_override_sim_camera(env)
+        print("camera override:", ok, "|", msg)
+        step_count = 0
+        refresh_display(obs)
 print_help()
 cid = fig.canvas.mpl_connect("key_press_event", on_key)
 refresh_display(obs)
