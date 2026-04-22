@@ -102,6 +102,9 @@ obs = env.reset()
 ok, msg = try_override_sim_camera(env)
 print("camera override:", ok, "|", msg)
 
+# get a fresh frame after camera change
+obs = env._sim.libero_env._get_observations()
+
 print("\n=== After reset ===")
 print("observation keys:", list(obs.keys()))
 
