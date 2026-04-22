@@ -29,23 +29,7 @@ env = LIBEROScenicEnv(
 )
 
 
-model = sim.model
-cam_id = model.camera_name2id("agentview")
-
-print("before:", model.cam_pos[cam_id])
-
-model.cam_pos[cam_id][2] += 0.8
-model.cam_pos[cam_id][1] -= 0.5
-model.cam_fovy[cam_id] = 80
-
-print("after :", model.cam_pos[cam_id])
-
-print("=== Environment created ===")
-print("action_space:", env.action_space)
-print("Action meaning assumed as: [dx, dy, dz, dax, day, daz, gripper]")
-print("These are delta actions, not absolute poses.")
-
-move_agentview_camera_up(env, dz=0.3, dy_back=-3, fovy_add=5.0)
+print(env.__dict__.keys())
 
 obs = env.reset()
 
